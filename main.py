@@ -108,7 +108,8 @@ def get_trustyfy_intro_text() -> str:
         "• Volle Kontrolle – volle Freiheit\n\n"
         "Damit ich dir die richtigen Infos geben kann:\n"
         "👉 **Bist du Privatperson oder Unternehmer?**"
-    )def get_private_experience_text() -> str:
+    )
+    def get_private_experience_text() -> str:
     return (
         "Super, lass uns herausfinden, welcher Weg am besten zu dir passt. ✨\n\n"
         "Darf ich kurz fragen:\n"
