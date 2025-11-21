@@ -18,6 +18,7 @@ from telegram.ext import (
 AFFILIATE_LINK = "https://app.trustyfy.com?by=101ddm"
 KONTAKT_INFO = "Du erreichst Eli direkt auf Telegram: @Eli_Bozinovska3"
 BOT_NAME = "EliBoziBot"
+ELI_USERNAME = "Eli_Bozinovska3"
 
 # Callback-Konstanten
 CB_WHAT_IS_TRUSTYFY = "what_is_trustyfy"
@@ -28,6 +29,25 @@ CB_PRIVATE_KRYPTO_YES = "private_krypto_yes"
 CB_PRIVATE_KRYPTO_NO = "private_krypto_no"
 CB_BUSINESS_CLASSIC = "business_classic"
 CB_BUSINESS_WEB3 = "business_web3"
+CB_OPEN_ACCOUNT = "open_account"
+
+# =========================
+# Simple Tracking
+# =========================
+
+stats = {
+    "seen_user_ids": set(),
+    "start_count": 0,
+    "trustyfy_button_presses": 0,
+}
+
+
+def _track_user(update: Update) -> None:
+    """Speichert die User-ID für einfache Statistik."""
+    user = update.effective_user
+    if user:
+        stats["seen_user_ids"].add(user.id)
+
 
 # =========================
 # Hilfsfunktionen: Keyboards
@@ -67,7 +87,8 @@ def business_type_keyboard() -> InlineKeyboardMarkup:
 
 def free_account_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
-        [InlineKeyboardButton("🔗 Kostenfreien Account erstellen", url=AFFILIATE_LINK)],
+        # früher: url=AFFILIATE_LINK – jetzt Callback, damit wir zählen können
+        [InlineKeyboardButton("🔗 Kostenfreien Account erstellen", callback_data=CB_OPEN_ACCOUNT)],
         [InlineKeyboardButton("📩 Kontakt zu Eli", callback_data=CB_CONTACT_ELI)],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -75,10 +96,11 @@ def free_account_keyboard() -> InlineKeyboardMarkup:
 
 def business_pricing_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
-        [InlineKeyboardButton("🔗 Kostenfreien Business-Account erstellen", url=AFFILIATE_LINK)],
+        [InlineKeyboardButton("🔗 Kostenfreien Business-Account erstellen", callback_data=CB_OPEN_ACCOUNT)],
         [InlineKeyboardButton("📩 Kontakt zu Eli", callback_data=CB_CONTACT_ELI)],
     ]
     return InlineKeyboardMarkup(keyboard)
+
 
 # =========================
 # Text-Bausteine
@@ -220,11 +242,15 @@ def get_contact_text() -> str:
         "Ich freue mich, von dir zu hören! – Eli 🤍"
     )
 
+
 # =========================
 # Handler
 # =========================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    _track_user(update)
+    stats["start_count"] += 1
+
     await update.message.reply_text(
         get_start_text(),
         reply_markup=main_menu_keyboard(),
@@ -232,9 +258,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Nur für Eli: einfache Live-Statistik ausgeben."""
+    user = update.effective_user
+    if not user or user.username != ELI_USERNAME:
+        await update.message.reply_text("Sorry, dieser Befehl ist nur für Eli verfügbar. 🤍")
+        return
+
+    total_users = len(stats["seen_user_ids"])
+    start_count = stats["start_count"]
+    link_presses = stats["trustyfy_button_presses"]
+
+    text = (
+        "📊 *EliBoziBot – Live-Statistik*\n\n"
+        f"👥 Einzigartige Nutzer:innen: *{total_users}*\n"
+        f"▶️ /start ausgeführt: *{start_count}*\n"
+        f"🔗 Trustyfy-Button gedrückt: *{link_presses}*\n\n"
+        "_Hinweis: Zahlen seit letztem Neustart des Bots._"
+    )
+
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     data = query.data
+    _track_user(update)
     await query.answer()
 
     if data == CB_WHAT_IS_TRUSTYFY:
@@ -247,6 +296,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif data == CB_CONTACT_ELI:
         await query.message.reply_text(
             get_contact_text(),
+            parse_mode="Markdown",
         )
 
     elif data == CB_ROLE_PRIVATE:
@@ -307,16 +357,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
+    elif data == CB_OPEN_ACCOUNT:
+        stats["trustyfy_button_presses"] += 1
+        await query.message.reply_text(
+            "Mega, dass du dir Trustyfy genauer anschauen willst. 🔐🚀\n\n"
+            "Hier geht’s direkt zu deinem Account:\n"
+            f"{AFFILIATE_LINK}\n\n"
+            "Wenn du magst, schreib mir danach kurz, wie weit du gekommen bist. 🤍",
+            parse_mode="Markdown",
+        )
+
+
 # =========================
 # main() – Einstiegspunkt
 # =========================
 
 def main() -> None:
+    # Token wird in Render als Variable TELEGRAM_BOT_TOKEN gespeichert
     token = os.environ["TELEGRAM_BOT_TOKEN"]
 
     application = Application.builder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CallbackQueryHandler(button_handler))
 
     application.run_polling()
