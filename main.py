@@ -296,7 +296,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif data == CB_CONTACT_ELI:
         await query.message.reply_text(
             get_contact_text(),
-            parse_mode="Markdown",
         )
 
     elif data == CB_ROLE_PRIVATE:
